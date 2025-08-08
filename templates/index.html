@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Advanced Typing Emotion Detector</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+<h2>Advanced Typing Emotion Detector</h2>
+<textarea id="typingBox" placeholder="Start typing here..."></textarea>
+<div id="result" class="neutral">Your mood will be detected here</div>
+
+<script>
+  const typingBox = document.getElementById('typingBox');
+  const resultDiv = document.getElementById('result');
+
+  let lastTime = null;
+  let intervals = [];
+  let backspaceCount = 0;
+  let pauseCount = 0;
+  let typingStarted = false;
+
+  const PAUSE_THRESHOLD = 800;
+
+  typingBox.addEventListener('keydown', (e) => {
+    const now = Date.now();
+
+    if (!typingStarted) {
+      typingStarted = true;
+      lastTime = now;
+      intervals = [];
+      backspaceCount = 0;
+      pauseCount = 0;
+      resultDiv.textContent = "Detecting mood...";
+      resultDiv.className = 'neutral';
+      return;
+    }
+
+    let interval = now - lastTime;
+
+    if (interval > PAUSE_THRESHOLD) {
+      pauseCount++;
+    }
+
+    if (lastTime) {
+      intervals.push(interval);
+    }
+
+    lastTime = now;
+
+    if (e.key === "Backspace") {
+      backspaceCount++;
+    }
+  });
+
+  let typingTimeout;
+  typingBox.addEventListener('keyup', () => {
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      if (intervals.length > 5) {
+        sendDataAndGetEmotion();
+      }
+    }, 2000);
+  });
+
+  function sendDataAndGetEmotion() {
+    const data = {
+      intervals: intervals,
+      backspaceCount: backspaceCount,
+      pauseCount: pauseCount,
+      totalKeys: intervals.length + 1
+    };
+
+    fetch('/predict_emotion', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(res => {
+      displayEmotion(res.emotion);
+    })
+    .catch(err => {
+      console.error(err);
+      resultDiv.textContent = "Error detecting emotion.";
+      resultDiv.className = 'neutral';
+    });
+  }
+
+  function displayEmotion(emotion) {
+    let text = "";
+    let className = "neutral";
+
+    if (emotion === "happy") {
+      text = "😊 You seem happy or excited!";
+      className = "happy";
+    } else if (emotion === "sad") {
+      text = "😔 You seem sad or tired.";
+      className = "sad";
+    } else {
+      text = "😐 You seem neutral or calm.";
+      className = "neutral";
+    }
+
+    resultDiv.textContent = text;
+    resultDiv.className = className;
+  }
+</script>
+
+</body>
+</html>
